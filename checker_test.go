@@ -1,9 +1,13 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestCheckDomain_Taken(t *testing.T) {
@@ -38,6 +42,82 @@ func TestCheckDomains_Concurrency(t *testing.T) {
 	}
 	if results[1].Domain != "notarealdomain12345.com" {
 		t.Errorf("expected second result to be notarealdomain12345.com, got %s", results[1].Domain)
+	}
+}
+
+func TestPrintJSON(t *testing.T) {
+	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.UTC)
+	results := []Result{
+		{Domain: "example.com", Available: false, CheckedAt: now},
+		{Domain: "free.com", Available: true, CheckedAt: now},
+		{Domain: "err.com", Err: errors.New("lookup failed"), CheckedAt: now},
+	}
+
+	// Capture stdout
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	printJSON(results, false)
+
+	w.Close()
+	os.Stdout = old
+
+	buf := make([]byte, 4096)
+	n, _ := r.Read(buf)
+	output := string(buf[:n])
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 JSON lines, got %d: %s", len(lines), output)
+	}
+
+	var jr jsonResult
+	json.Unmarshal([]byte(lines[0]), &jr)
+	if jr.Domain != "example.com" || jr.Available != false {
+		t.Errorf("unexpected first result: %+v", jr)
+	}
+
+	json.Unmarshal([]byte(lines[1]), &jr)
+	if jr.Domain != "free.com" || jr.Available != true {
+		t.Errorf("unexpected second result: %+v", jr)
+	}
+
+	json.Unmarshal([]byte(lines[2]), &jr)
+	if jr.Domain != "err.com" || jr.Error != "lookup failed" {
+		t.Errorf("unexpected third result: %+v", jr)
+	}
+}
+
+func TestPrintJSON_AvailableOnly(t *testing.T) {
+	now := time.Date(2026, 3, 6, 12, 0, 0, 0, time.UTC)
+	results := []Result{
+		{Domain: "taken.com", Available: false, CheckedAt: now},
+		{Domain: "free.com", Available: true, CheckedAt: now},
+	}
+
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	printJSON(results, true)
+
+	w.Close()
+	os.Stdout = old
+
+	buf := make([]byte, 4096)
+	n, _ := r.Read(buf)
+	output := string(buf[:n])
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+
+	if len(lines) != 1 {
+		t.Fatalf("expected 1 JSON line, got %d: %s", len(lines), output)
+	}
+
+	var jr jsonResult
+	json.Unmarshal([]byte(lines[0]), &jr)
+	if jr.Domain != "free.com" || jr.Available != true {
+		t.Errorf("unexpected result: %+v", jr)
 	}
 }
 

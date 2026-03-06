@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -15,6 +16,7 @@ func main() {
 	concurrency := flag.Int("c", 5, "max concurrent checks")
 	availableOnly := flag.Bool("available-only", false, "only print available domains")
 	tlds := flag.String("tlds", "", "comma-separated TLDs to expand base names (e.g. com,net,io)")
+	jsonOutput := flag.Bool("json", false, "output results in JSON format (one JSON object per line)")
 	noColor := flag.Bool("no-color", false, "disable colored output")
 	flag.Parse()
 
@@ -73,6 +75,46 @@ func main() {
 
 	results := CheckDomains(domains, *concurrency)
 
+	if *jsonOutput {
+		printJSON(results, *availableOnly)
+	} else {
+		printText(results, *availableOnly)
+	}
+}
+
+type jsonResult struct {
+	Domain    string `json:"domain"`
+	Available bool   `json:"available"`
+	Error     string `json:"error,omitempty"`
+	CheckedAt string `json:"checked_at"`
+}
+
+func printJSON(results []Result, availableOnly bool) {
+	encoder := json.NewEncoder(os.Stdout)
+	var availCount int
+	for _, r := range results {
+		if availableOnly && !r.Available {
+			continue
+		}
+		jr := jsonResult{
+			Domain:    r.Domain,
+			Available: r.Available,
+			CheckedAt: r.CheckedAt.Format("2006-01-02T15:04:05Z"),
+		}
+		if r.Err != nil {
+			jr.Error = r.Err.Error()
+		}
+		encoder.Encode(jr)
+		if r.Available {
+			availCount++
+		}
+	}
+	if availCount == 0 {
+		os.Exit(1)
+	}
+}
+
+func printText(results []Result, availableOnly bool) {
 	green := color.New(color.FgGreen).SprintFunc()
 	red := color.New(color.FgRed).SprintFunc()
 	yellow := color.New(color.FgYellow).SprintFunc()
@@ -82,7 +124,7 @@ func main() {
 		switch {
 		case r.Err != nil:
 			errCount++
-			if !*availableOnly {
+			if !availableOnly {
 				fmt.Printf("  %s  %s: %v\n", yellow("ERROR"), r.Domain, r.Err)
 			}
 		case r.Available:
@@ -90,7 +132,7 @@ func main() {
 			fmt.Printf("  %s  %s\n", green("AVAIL"), r.Domain)
 		default:
 			takenCount++
-			if !*availableOnly {
+			if !availableOnly {
 				fmt.Printf("  %s  %s\n", red("TAKEN"), r.Domain)
 			}
 		}
