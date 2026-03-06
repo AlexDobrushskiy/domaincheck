@@ -17,8 +17,8 @@ type Result struct {
 
 func CheckDomain(domain string) Result {
 	client := &rdap.Client{}
-	_, err := client.QueryDomain(domain)
 	checkedAt := time.Now().UTC()
+	_, err := client.QueryDomain(domain)
 	if err != nil {
 		var clientErr *rdap.ClientError
 		if errors.As(err, &clientErr) && clientErr.Type == rdap.ObjectDoesNotExist {

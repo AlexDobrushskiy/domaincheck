@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"os"
@@ -53,23 +54,19 @@ func TestPrintJSON(t *testing.T) {
 		{Domain: "err.com", Err: errors.New("lookup failed"), CheckedAt: now},
 	}
 
-	// Capture stdout
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
+	var buf bytes.Buffer
+	availCount, err := printJSON(&buf, results, false)
+	if err != nil {
+		t.Fatalf("printJSON returned error: %v", err)
+	}
+	if availCount != 1 {
+		t.Errorf("expected availCount 1, got %d", availCount)
+	}
 
-	printJSON(results, false)
-
-	w.Close()
-	os.Stdout = old
-
-	buf := make([]byte, 4096)
-	n, _ := r.Read(buf)
-	output := string(buf[:n])
-	lines := strings.Split(strings.TrimSpace(output), "\n")
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
 
 	if len(lines) != 3 {
-		t.Fatalf("expected 3 JSON lines, got %d: %s", len(lines), output)
+		t.Fatalf("expected 3 JSON lines, got %d: %s", len(lines), buf.String())
 	}
 
 	var jr jsonResult
@@ -102,22 +99,19 @@ func TestPrintJSON_AvailableOnly(t *testing.T) {
 		{Domain: "free.com", Available: true, CheckedAt: now},
 	}
 
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
+	var buf bytes.Buffer
+	availCount, err := printJSON(&buf, results, true)
+	if err != nil {
+		t.Fatalf("printJSON returned error: %v", err)
+	}
+	if availCount != 1 {
+		t.Errorf("expected availCount 1, got %d", availCount)
+	}
 
-	printJSON(results, true)
-
-	w.Close()
-	os.Stdout = old
-
-	buf := make([]byte, 4096)
-	n, _ := r.Read(buf)
-	output := string(buf[:n])
-	lines := strings.Split(strings.TrimSpace(output), "\n")
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
 
 	if len(lines) != 1 {
-		t.Fatalf("expected 1 JSON line, got %d: %s", len(lines), output)
+		t.Fatalf("expected 1 JSON line, got %d: %s", len(lines), buf.String())
 	}
 
 	var jr jsonResult

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -78,7 +79,12 @@ func main() {
 
 	var availCount int
 	if *jsonOutput {
-		availCount = printJSON(results, *availableOnly)
+		var err error
+		availCount, err = printJSON(os.Stdout, results, *availableOnly)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error writing JSON: %v\n", err)
+			os.Exit(2)
+		}
 	} else {
 		availCount = printText(results, *availableOnly)
 	}
@@ -94,8 +100,8 @@ type jsonResult struct {
 	CheckedAt string `json:"checked_at"`
 }
 
-func printJSON(results []Result, availableOnly bool) int {
-	encoder := json.NewEncoder(os.Stdout)
+func printJSON(w io.Writer, results []Result, availableOnly bool) (int, error) {
+	encoder := json.NewEncoder(w)
 	var availCount int
 	for _, r := range results {
 		if availableOnly && !r.Available {
@@ -110,14 +116,13 @@ func printJSON(results []Result, availableOnly bool) int {
 			jr.Error = r.Err.Error()
 		}
 		if err := encoder.Encode(jr); err != nil {
-			fmt.Fprintf(os.Stderr, "error writing JSON: %v\n", err)
-			os.Exit(2)
+			return availCount, err
 		}
 		if r.Available {
 			availCount++
 		}
 	}
-	return availCount
+	return availCount, nil
 }
 
 func printText(results []Result, availableOnly bool) int {
