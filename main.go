@@ -95,7 +95,7 @@ func main() {
 
 type jsonResult struct {
 	Domain    string `json:"domain"`
-	Available bool   `json:"available"`
+	Available *bool  `json:"available"`
 	Error     string `json:"error,omitempty"`
 	CheckedAt string `json:"checked_at"`
 }
@@ -109,11 +109,13 @@ func printJSON(w io.Writer, results []Result, availableOnly bool) (int, error) {
 		}
 		jr := jsonResult{
 			Domain:    r.Domain,
-			Available: r.Available,
 			CheckedAt: r.CheckedAt.Format(time.RFC3339),
 		}
 		if r.Err != nil {
 			jr.Error = r.Err.Error()
+		} else {
+			avail := r.Available
+			jr.Available = &avail
 		}
 		if err := encoder.Encode(jr); err != nil {
 			return availCount, err

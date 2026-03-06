@@ -69,19 +69,27 @@ func TestPrintJSON(t *testing.T) {
 		t.Fatalf("expected 3 JSON lines, got %d: %s", len(lines), buf.String())
 	}
 
+	expectedCheckedAt := "2026-03-06T12:00:00Z"
+
 	var jr jsonResult
 	if err := json.Unmarshal([]byte(lines[0]), &jr); err != nil {
 		t.Fatalf("failed to unmarshal line 0: %v", err)
 	}
-	if jr.Domain != "example.com" || jr.Available != false {
+	if jr.Domain != "example.com" || jr.Available == nil || *jr.Available != false {
 		t.Errorf("unexpected first result: %+v", jr)
+	}
+	if jr.CheckedAt != expectedCheckedAt {
+		t.Errorf("expected checked_at %q, got %q", expectedCheckedAt, jr.CheckedAt)
 	}
 
 	if err := json.Unmarshal([]byte(lines[1]), &jr); err != nil {
 		t.Fatalf("failed to unmarshal line 1: %v", err)
 	}
-	if jr.Domain != "free.com" || jr.Available != true {
+	if jr.Domain != "free.com" || jr.Available == nil || *jr.Available != true {
 		t.Errorf("unexpected second result: %+v", jr)
+	}
+	if jr.CheckedAt != expectedCheckedAt {
+		t.Errorf("expected checked_at %q, got %q", expectedCheckedAt, jr.CheckedAt)
 	}
 
 	if err := json.Unmarshal([]byte(lines[2]), &jr); err != nil {
@@ -89,6 +97,12 @@ func TestPrintJSON(t *testing.T) {
 	}
 	if jr.Domain != "err.com" || jr.Error != "lookup failed" {
 		t.Errorf("unexpected third result: %+v", jr)
+	}
+	if jr.Available != nil {
+		t.Errorf("expected available to be null for error result, got %v", *jr.Available)
+	}
+	if jr.CheckedAt != expectedCheckedAt {
+		t.Errorf("expected checked_at %q, got %q", expectedCheckedAt, jr.CheckedAt)
 	}
 }
 
@@ -118,8 +132,11 @@ func TestPrintJSON_AvailableOnly(t *testing.T) {
 	if err := json.Unmarshal([]byte(lines[0]), &jr); err != nil {
 		t.Fatalf("failed to unmarshal line 0: %v", err)
 	}
-	if jr.Domain != "free.com" || jr.Available != true {
+	if jr.Domain != "free.com" || jr.Available == nil || *jr.Available != true {
 		t.Errorf("unexpected result: %+v", jr)
+	}
+	if jr.CheckedAt != "2026-03-06T12:00:00Z" {
+		t.Errorf("expected checked_at %q, got %q", "2026-03-06T12:00:00Z", jr.CheckedAt)
 	}
 }
 
