@@ -2,10 +2,13 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 )
@@ -15,6 +18,7 @@ func main() {
 	concurrency := flag.Int("c", 5, "max concurrent checks")
 	availableOnly := flag.Bool("available-only", false, "only print available domains")
 	tlds := flag.String("tlds", "", "comma-separated TLDs to expand base names (e.g. com,net,io)")
+	jsonOutput := flag.Bool("json", false, "output results in JSON format (one JSON object per line)")
 	noColor := flag.Bool("no-color", false, "disable colored output")
 	flag.Parse()
 
@@ -73,6 +77,57 @@ func main() {
 
 	results := CheckDomains(domains, *concurrency)
 
+	var availCount int
+	if *jsonOutput {
+		var err error
+		availCount, err = printJSON(os.Stdout, results, *availableOnly)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error writing JSON: %v\n", err)
+			os.Exit(2)
+		}
+	} else {
+		availCount = printText(results, *availableOnly)
+	}
+	if availCount == 0 {
+		os.Exit(1)
+	}
+}
+
+type jsonResult struct {
+	Domain    string `json:"domain"`
+	Available *bool  `json:"available"`
+	Error     string `json:"error,omitempty"`
+	CheckedAt string `json:"checked_at"`
+}
+
+func printJSON(w io.Writer, results []Result, availableOnly bool) (int, error) {
+	encoder := json.NewEncoder(w)
+	var availCount int
+	for _, r := range results {
+		if availableOnly && !r.Available {
+			continue
+		}
+		jr := jsonResult{
+			Domain:    r.Domain,
+			CheckedAt: r.CheckedAt.Format(time.RFC3339),
+		}
+		if r.Err != nil {
+			jr.Error = r.Err.Error()
+		} else {
+			avail := r.Available
+			jr.Available = &avail
+		}
+		if err := encoder.Encode(jr); err != nil {
+			return availCount, err
+		}
+		if r.Available {
+			availCount++
+		}
+	}
+	return availCount, nil
+}
+
+func printText(results []Result, availableOnly bool) int {
 	green := color.New(color.FgGreen).SprintFunc()
 	red := color.New(color.FgRed).SprintFunc()
 	yellow := color.New(color.FgYellow).SprintFunc()
@@ -82,7 +137,7 @@ func main() {
 		switch {
 		case r.Err != nil:
 			errCount++
-			if !*availableOnly {
+			if !availableOnly {
 				fmt.Printf("  %s  %s: %v\n", yellow("ERROR"), r.Domain, r.Err)
 			}
 		case r.Available:
@@ -90,7 +145,7 @@ func main() {
 			fmt.Printf("  %s  %s\n", green("AVAIL"), r.Domain)
 		default:
 			takenCount++
-			if !*availableOnly {
+			if !availableOnly {
 				fmt.Printf("  %s  %s\n", red("TAKEN"), r.Domain)
 			}
 		}
@@ -100,9 +155,7 @@ func main() {
 	fmt.Printf("\nSummary: %d available, %d taken, %d error (of %d checked)\n",
 		availCount, takenCount, errCount, total)
 
-	if availCount == 0 {
-		os.Exit(1)
-	}
+	return availCount
 }
 
 func readDomainsFromFile(path string) ([]string, error) {
