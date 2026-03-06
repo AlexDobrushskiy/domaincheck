@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 )
@@ -75,10 +76,14 @@ func main() {
 
 	results := CheckDomains(domains, *concurrency)
 
+	var availCount int
 	if *jsonOutput {
-		printJSON(results, *availableOnly)
+		availCount = printJSON(results, *availableOnly)
 	} else {
-		printText(results, *availableOnly)
+		availCount = printText(results, *availableOnly)
+	}
+	if availCount == 0 {
+		os.Exit(1)
 	}
 }
 
@@ -89,7 +94,7 @@ type jsonResult struct {
 	CheckedAt string `json:"checked_at"`
 }
 
-func printJSON(results []Result, availableOnly bool) {
+func printJSON(results []Result, availableOnly bool) int {
 	encoder := json.NewEncoder(os.Stdout)
 	var availCount int
 	for _, r := range results {
@@ -99,22 +104,23 @@ func printJSON(results []Result, availableOnly bool) {
 		jr := jsonResult{
 			Domain:    r.Domain,
 			Available: r.Available,
-			CheckedAt: r.CheckedAt.Format("2006-01-02T15:04:05Z"),
+			CheckedAt: r.CheckedAt.Format(time.RFC3339),
 		}
 		if r.Err != nil {
 			jr.Error = r.Err.Error()
 		}
-		encoder.Encode(jr)
+		if err := encoder.Encode(jr); err != nil {
+			fmt.Fprintf(os.Stderr, "error writing JSON: %v\n", err)
+			os.Exit(2)
+		}
 		if r.Available {
 			availCount++
 		}
 	}
-	if availCount == 0 {
-		os.Exit(1)
-	}
+	return availCount
 }
 
-func printText(results []Result, availableOnly bool) {
+func printText(results []Result, availableOnly bool) int {
 	green := color.New(color.FgGreen).SprintFunc()
 	red := color.New(color.FgRed).SprintFunc()
 	yellow := color.New(color.FgYellow).SprintFunc()
@@ -142,9 +148,7 @@ func printText(results []Result, availableOnly bool) {
 	fmt.Printf("\nSummary: %d available, %d taken, %d error (of %d checked)\n",
 		availCount, takenCount, errCount, total)
 
-	if availCount == 0 {
-		os.Exit(1)
-	}
+	return availCount
 }
 
 func readDomainsFromFile(path string) ([]string, error) {

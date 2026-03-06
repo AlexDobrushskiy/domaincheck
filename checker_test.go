@@ -73,17 +73,23 @@ func TestPrintJSON(t *testing.T) {
 	}
 
 	var jr jsonResult
-	json.Unmarshal([]byte(lines[0]), &jr)
+	if err := json.Unmarshal([]byte(lines[0]), &jr); err != nil {
+		t.Fatalf("failed to unmarshal line 0: %v", err)
+	}
 	if jr.Domain != "example.com" || jr.Available != false {
 		t.Errorf("unexpected first result: %+v", jr)
 	}
 
-	json.Unmarshal([]byte(lines[1]), &jr)
+	if err := json.Unmarshal([]byte(lines[1]), &jr); err != nil {
+		t.Fatalf("failed to unmarshal line 1: %v", err)
+	}
 	if jr.Domain != "free.com" || jr.Available != true {
 		t.Errorf("unexpected second result: %+v", jr)
 	}
 
-	json.Unmarshal([]byte(lines[2]), &jr)
+	if err := json.Unmarshal([]byte(lines[2]), &jr); err != nil {
+		t.Fatalf("failed to unmarshal line 2: %v", err)
+	}
 	if jr.Domain != "err.com" || jr.Error != "lookup failed" {
 		t.Errorf("unexpected third result: %+v", jr)
 	}
@@ -115,7 +121,9 @@ func TestPrintJSON_AvailableOnly(t *testing.T) {
 	}
 
 	var jr jsonResult
-	json.Unmarshal([]byte(lines[0]), &jr)
+	if err := json.Unmarshal([]byte(lines[0]), &jr); err != nil {
+		t.Fatalf("failed to unmarshal line 0: %v", err)
+	}
 	if jr.Domain != "free.com" || jr.Available != true {
 		t.Errorf("unexpected result: %+v", jr)
 	}
