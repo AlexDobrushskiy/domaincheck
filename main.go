@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -69,8 +70,8 @@ func main() {
 
 	// Validate domains
 	for _, d := range domains {
-		if !strings.Contains(d, ".") {
-			fmt.Fprintf(os.Stderr, "Invalid domain %q: must contain a dot (use -tlds to expand base names)\n", d)
+		if err := validateDomain(d); err != nil {
+			fmt.Fprintf(os.Stderr, "Invalid domain %q: %v\n", d, err)
 			os.Exit(2)
 		}
 	}
@@ -156,6 +157,26 @@ func printText(results []Result, availableOnly bool) int {
 		availCount, takenCount, errCount, total)
 
 	return availCount
+}
+
+// validDomainRe matches a basic domain format: labels separated by dots,
+// each label containing only alphanumeric characters and hyphens.
+var validDomainRe = regexp.MustCompile(`^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$`)
+
+func validateDomain(domain string) error {
+	if domain == "" {
+		return fmt.Errorf("domain must not be empty")
+	}
+	if strings.ContainsAny(domain, " \t\n\r") {
+		return fmt.Errorf("domain must not contain whitespace")
+	}
+	if !strings.Contains(domain, ".") {
+		return fmt.Errorf("must contain a dot (use -tlds to expand base names)")
+	}
+	if !validDomainRe.MatchString(domain) {
+		return fmt.Errorf("contains invalid characters; only letters, digits, hyphens, and dots are allowed")
+	}
+	return nil
 }
 
 func readDomainsFromFile(path string) ([]string, error) {

@@ -140,6 +140,38 @@ func TestPrintJSON_AvailableOnly(t *testing.T) {
 	}
 }
 
+func TestValidateDomain(t *testing.T) {
+	tests := []struct {
+		domain  string
+		wantErr bool
+	}{
+		{"example.com", false},
+		{"sub.example.com", false},
+		{"my-site.co.uk", false},
+		{"a.io", false},
+		{"", true},
+		{"nodot", true},
+		{"has space.com", true},
+		{"tab\there.com", true},
+		{"special!char.com", true},
+		{"under_score.com", true},
+		{"trailing-.com", true},
+		{"-leading.com", true},
+		{"double..dot.com", true},
+		{".leading-dot.com", true},
+		{"trailing-dot.com.", true},
+		{"http://example.com", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.domain, func(t *testing.T) {
+			err := validateDomain(tt.domain)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateDomain(%q) error = %v, wantErr %v", tt.domain, err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestReadDomainsFromFile(t *testing.T) {
 	content := "example.com\n\n# comment\ntest.net\n  spaced.org  \n"
 	tmp := filepath.Join(t.TempDir(), "domains.txt")
